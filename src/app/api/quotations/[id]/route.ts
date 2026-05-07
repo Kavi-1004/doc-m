@@ -111,7 +111,17 @@ export async function DELETE(
   const { id } = await params;
   const quotation = await prisma.quotation.findUnique({ where: { id } });
 
-  await prisma.quotation.delete({ where: { id } });
+  try {
+    await prisma.quotation.delete({ where: { id } });
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2003") {
+      return NextResponse.json(
+        { error: "Cannot delete quotation with existing purchase orders, delivery orders, or invoices. Remove them first." },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   await createLog("DELETED", "Quotation", id, session.id, `Deleted quotation: ${quotation?.quotationNumber}`);
 

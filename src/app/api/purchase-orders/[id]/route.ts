@@ -56,7 +56,19 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  await prisma.purchaseOrder.delete({ where: { id } });
+
+  try {
+    await prisma.purchaseOrder.delete({ where: { id } });
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2003") {
+      return NextResponse.json(
+        { error: "Cannot delete purchase order with existing delivery orders or invoices. Remove them first." },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
+
   await createLog("DELETED", "PurchaseOrder", id, session.id, "Deleted purchase order");
 
   return NextResponse.json({ success: true });

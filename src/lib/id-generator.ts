@@ -12,49 +12,52 @@ export async function generateDocumentId(
   const dateStr = format(d, "yyyyMMdd");
   const prefix = `${companyShortCode}-${type}-${dateStr}`;
 
-  let lastNumber: string | null = null;
+  let maxSeq = 0;
+
+  const extractSeq = (numbers: string[]) => {
+    for (const num of numbers) {
+      const base = num.split("-R")[0];
+      const parts = base.split("-");
+      const seqStr = parts[parts.length - 1];
+      const seq = parseInt(seqStr, 10);
+      if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+    }
+  };
 
   switch (type) {
     case "Q": {
-      const records = await prisma.quotation.findMany({
+      const all = await prisma.quotation.findMany({
         where: { quotationNumber: { startsWith: prefix } },
-        orderBy: { quotationNumber: "desc" },
-        take: 1,
         select: { quotationNumber: true },
       });
-      lastNumber = records[0]?.quotationNumber ?? null;
+      extractSeq(all.map((r) => r.quotationNumber));
       break;
     }
     case "DO": {
-      const records = await prisma.deliveryOrder.findMany({
+      const all = await prisma.deliveryOrder.findMany({
         where: { doNumber: { startsWith: prefix } },
-        orderBy: { doNumber: "desc" },
-        take: 1,
         select: { doNumber: true },
       });
-      lastNumber = records[0]?.doNumber ?? null;
+      extractSeq(all.map((r) => r.doNumber));
+      const altPrefix = `${companyShortCode}-D-${dateStr}`;
+      const altAll = await prisma.deliveryOrder.findMany({
+        where: { doNumber: { startsWith: altPrefix } },
+        select: { doNumber: true },
+      });
+      extractSeq(altAll.map((r) => r.doNumber));
       break;
     }
     case "I": {
-      const records = await prisma.invoice.findMany({
+      const all = await prisma.invoice.findMany({
         where: { invoiceNumber: { startsWith: prefix } },
-        orderBy: { invoiceNumber: "desc" },
-        take: 1,
         select: { invoiceNumber: true },
       });
-      lastNumber = records[0]?.invoiceNumber ?? null;
+      extractSeq(all.map((r) => r.invoiceNumber));
       break;
     }
   }
 
-  let seq = 1;
-  if (lastNumber) {
-    const parts = lastNumber.split("-");
-    const lastSeq = parseInt(parts[parts.length - 1], 10);
-    if (!isNaN(lastSeq)) seq = lastSeq + 1;
-  }
-
-  return `${prefix}-${String(seq).padStart(3, "0")}`;
+  return `${prefix}-${String(maxSeq + 1).padStart(3, "0")}`;
 }
 
 export function generateRevisionId(baseId: string, revisionNumber: number): string {
