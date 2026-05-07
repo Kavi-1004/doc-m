@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface Customer {
   id: string;
@@ -14,11 +15,14 @@ interface Customer {
 }
 
 export default function CustomersPage() {
+  const { showToast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [formError, setFormError] = useState("");
   const [form, setForm] = useState({
     name: "", contactPerson: "", email: "", phone: "", address: "", taxId: "",
   });
@@ -27,8 +31,8 @@ export default function CustomersPage() {
     const controller = new AbortController();
     fetch(`/api/customers?search=${search}`, { signal: controller.signal })
       .then((r) => r.json())
-      .then(setCustomers)
-      .catch(() => {});
+      .then((data) => { setCustomers(data); setLoading(false); })
+      .catch((e) => { if (e?.name !== "AbortError") setLoading(false); });
     return () => controller.abort();
   }, [search, refreshKey]);
 
@@ -53,23 +57,51 @@ export default function CustomersPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError("");
+
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      setFormError("Please enter a valid email address");
+      return;
+    }
+
     const method = editing ? "PUT" : "POST";
     const url = editing ? `/api/customers/${editing.id}` : "/api/customers";
 
-    await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    resetForm();
-    setRefreshKey((k) => k + 1);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setFormError(data?.error || "Failed to save customer");
+        return;
+      }
+
+      showToast(editing ? "Customer updated" : "Customer created", "success");
+      resetForm();
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setFormError("An unexpected error occurred");
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this customer?")) return;
-    await fetch(`/api/customers/${id}`, { method: "DELETE" });
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/customers/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        showToast(data?.error || "Failed to delete customer", "error");
+        return;
+      }
+      showToast("Customer deleted", "success");
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast("An unexpected error occurred", "error");
+    }
   }
 
   return (
@@ -103,6 +135,11 @@ export default function CustomersPage() {
           <h2 className="text-lg font-semibold mb-4">
             {editing ? "Edit Customer" : "Add Customer"}
           </h2>
+          {formError && (
+            <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              {formError}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
@@ -159,7 +196,14 @@ export default function CustomersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {customers.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-16 text-center text-gray-500">
+                    <Loader2 className="w-8 h-8 mx-auto mb-3 text-gray-300 animate-spin" />
+                    <p className="text-sm text-gray-400">Loading customers...</p>
+                  </td>
+                </tr>
+              ) : customers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-16 text-center text-gray-500">
                     <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />

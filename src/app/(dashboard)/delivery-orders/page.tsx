@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Truck, Search, Plus, Trash2, Eye, Download } from "lucide-react";
+import { Truck, Search, Plus, Trash2, Eye, Download, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/ui/Toast";
 
 interface DeliveryOrder {
   id: string;
@@ -23,23 +24,35 @@ const statusColors: Record<string, string> = {
 };
 
 export default function DeliveryOrdersPage() {
+  const { showToast } = useToast();
   const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>([]);
   const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
     fetch(`/api/delivery-orders?search=${search}`, { signal: controller.signal })
       .then((r) => r.json())
-      .then(setDeliveryOrders)
-      .catch(() => {});
+      .then((data) => { setDeliveryOrders(data); setLoading(false); })
+      .catch((e) => { if (e?.name !== "AbortError") setLoading(false); });
     return () => controller.abort();
   }, [search, refreshKey]);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this delivery order?")) return;
-    await fetch(`/api/delivery-orders/${id}`, { method: "DELETE" });
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/delivery-orders/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        showToast(data?.error || "Failed to delete delivery order", "error");
+        return;
+      }
+      showToast("Delivery order deleted", "success");
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast("An unexpected error occurred", "error");
+    }
   }
 
   return (
@@ -82,7 +95,14 @@ export default function DeliveryOrdersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {deliveryOrders.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-16 text-center text-gray-500">
+                    <Loader2 className="w-8 h-8 mx-auto mb-3 text-gray-300 animate-spin" />
+                    <p className="text-sm text-gray-400">Loading delivery orders...</p>
+                  </td>
+                </tr>
+              ) : deliveryOrders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center text-gray-500">
                     <Truck className="w-12 h-12 mx-auto mb-3 text-gray-300" />

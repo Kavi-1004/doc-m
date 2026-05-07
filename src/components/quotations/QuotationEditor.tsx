@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2, Save, Printer, ArrowLeft, Loader2, Download, Mail } from "lucide-react";
 import Link from "next/link";
 import QuotationPreview from "./QuotationPreview";
+import { useToast } from "@/components/ui/Toast";
 
 interface QuotationItem {
   id?: string;
@@ -44,10 +45,12 @@ interface Props {
 
 export default function QuotationEditor({ quotationId }: Props) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [companyId, setCompanyId] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -162,10 +165,18 @@ export default function QuotationEditor({ quotationId }: Props) {
   }
 
   async function handleSave(saveStatus?: string) {
-    if (!companyId || !customerId) {
-      alert("Please select a company and customer");
+    const newErrors: Record<string, string> = {};
+    if (!companyId) newErrors.companyId = "Company is required";
+    if (!customerId) newErrors.customerId = "Customer is required";
+    const hasEmptyItems = items.some((item) => !item.description.trim());
+    if (hasEmptyItems) newErrors.items = "All items must have a description";
+    if (discount < 0) newErrors.discount = "Discount cannot be negative";
+    if (taxRate < 0 || taxRate > 100) newErrors.taxRate = "Tax rate must be between 0 and 100";
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
+    setErrors({});
 
     setSaving(true);
     try {
@@ -203,22 +214,14 @@ export default function QuotationEditor({ quotationId }: Props) {
           router.push(`/quotations/${data.id}/edit`);
         } else {
           setRefreshKey((k) => k + 1);
-          alert("Quotation saved successfully!");
+          showToast("Quotation saved successfully!", "success");
         }
       } else {
-        let errorMessage = "Failed to save";
-        try {
-          const err = await res.json();
-          errorMessage = err.error || errorMessage;
-        } catch (e) {
-          // If response is not JSON
-          errorMessage = `Server Error (${res.status})`;
-        }
-        alert(`Error: ${errorMessage}`);
+        const err = await res.json().catch(() => null);
+        showToast(err?.error || `Server Error (${res.status})`, "error");
       }
-    } catch (error) {
-      console.error(error);
-      alert("An unexpected error occurred while saving.");
+    } catch {
+      showToast("An unexpected error occurred while saving.", "error");
     } finally {
       setSaving(false);
     }
@@ -235,8 +238,15 @@ export default function QuotationEditor({ quotationId }: Props) {
     window.open(`/api/quotations/${quotationId}/pdf`, "_blank");
   }
 
+  const [emailError, setEmailError] = useState("");
+
   async function handleSendEmail() {
     if (!quotationId || !emailTo) return;
+    setEmailError("");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTo)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
     setEmailSending(true);
     try {
       const res = await fetch(`/api/quotations/${quotationId}/email`, {
@@ -246,14 +256,16 @@ export default function QuotationEditor({ quotationId }: Props) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("Email sent successfully!");
+        showToast("Email sent successfully!", "success");
         setShowEmailDialog(false);
         setEmailTo("");
         setEmailSubject("");
         setEmailMessage("");
       } else {
-        alert(`Failed to send email: ${data.error || "Unknown error"}`);
+        setEmailError(data.error || "Failed to send email");
       }
+    } catch {
+      setEmailError("An unexpected error occurred");
     } finally {
       setEmailSending(false);
     }
@@ -343,29 +355,32 @@ export default function QuotationEditor({ quotationId }: Props) {
                   value={companyId}
                   onChange={(e) => {
                     setCompanyId(e.target.value);
+                    setErrors((prev) => { const next = { ...prev }; delete next.companyId; return next; });
                     const co = companies.find((c) => c.id === e.target.value);
                     if (co?.taxRate) setTaxRate(co.taxRate);
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.companyId ? "border-red-400" : "border-gray-300"}`}
                 >
                   <option value="">Select company</option>
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>{c.name} ({c.shortCode})</option>
                   ))}
                 </select>
+                {errors.companyId && <p className="text-xs text-red-600 mt-1">{errors.companyId}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
                 <select
                   value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => { setCustomerId(e.target.value); setErrors((prev) => { const next = { ...prev }; delete next.customerId; return next; }); }}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.customerId ? "border-red-400" : "border-gray-300"}`}
                 >
                   <option value="">Select customer</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
+                {errors.customerId && <p className="text-xs text-red-600 mt-1">{errors.customerId}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
@@ -519,20 +534,25 @@ export default function QuotationEditor({ quotationId }: Props) {
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={discount}
                   onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.discount ? "border-red-400" : "border-gray-300"}`}
                 />
+                {errors.discount && <p className="text-xs text-red-600 mt-1">{errors.discount}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  max="100"
                   value={taxRate}
                   onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.taxRate ? "border-red-400" : "border-gray-300"}`}
                 />
+                {errors.taxRate && <p className="text-xs text-red-600 mt-1">{errors.taxRate}</p>}
               </div>
             </div>
             <div className="mt-4 space-y-2 text-sm">
@@ -603,9 +623,10 @@ export default function QuotationEditor({ quotationId }: Props) {
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">To *</label>
-                <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)}
+                <input type="email" value={emailTo} onChange={(e) => { setEmailTo(e.target.value); setEmailError(""); }}
                   placeholder="recipient@example.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailError ? "border-red-400" : "border-gray-300"}`} />
+                {emailError && <p className="text-xs text-red-600 mt-1">{emailError}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Subject (optional)</label>
