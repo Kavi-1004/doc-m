@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Save } from "lucide-react";
+import { Settings, Save, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface FeatureSetting {
   id: string;
@@ -19,16 +20,17 @@ const settingLabels: Record<string, { label: string; description: string; type: 
 };
 
 export default function SettingsPage() {
+  const { showToast } = useToast();
   const [settings, setSettings] = useState<FeatureSetting[]>([]);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/settings", { signal: controller.signal })
       .then((r) => r.json())
-      .then(setSettings)
-      .catch(() => {});
+      .then((data) => { setSettings(data); setLoading(false); })
+      .catch((e) => { if (e?.name !== "AbortError") setLoading(false); });
     return () => controller.abort();
   }, []);
 
@@ -38,16 +40,31 @@ export default function SettingsPage() {
   }
 
   async function handleSave() {
+    const taxSetting = settings.find((s) => s.key === "default_tax_rate");
+    if (taxSetting) {
+      const rate = Number(taxSetting.value);
+      if (isNaN(rate) || rate < 0 || rate > 100) {
+        showToast("Default tax rate must be a number between 0 and 100", "error");
+        return;
+      }
+    }
     setSaving(true);
     try {
-      await fetch("/api/settings", {
+      const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           settings: settings.map((s) => ({ key: s.key, value: s.value })),
         }),
       });
-      setSaved(true);
+      if (res.ok) {
+        showToast("Settings saved successfully", "success");
+      } else {
+        const data = await res.json().catch(() => null);
+        showToast(data?.error || "Failed to save settings", "error");
+      }
+    } catch {
+      showToast("An unexpected error occurred", "error");
     } finally {
       setSaving(false);
     }
@@ -69,20 +86,16 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {saved && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-6 flex items-center gap-2">
-          <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
-          </svg>
-          Settings saved successfully
-        </div>
-      )}
-
       <div className="bg-white rounded-xl border border-gray-200 divide-y">
-        {settings.length === 0 ? (
+        {loading ? (
+          <div className="p-12 text-center text-gray-500">
+            <Loader2 className="w-8 h-8 mx-auto mb-3 text-gray-300 animate-spin" />
+            <p className="text-sm text-gray-400">Loading settings...</p>
+          </div>
+        ) : settings.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <Settings className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p>Loading settings...</p>
+            <p>No settings found</p>
           </div>
         ) : (
           settings.map((setting) => {

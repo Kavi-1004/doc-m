@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Building2, Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface Company {
   id: string;
@@ -21,12 +22,15 @@ interface Company {
 }
 
 export default function CompaniesPage() {
+  const { showToast } = useToast();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [uploading, setUploading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [formError, setFormError] = useState("");
   const [form, setForm] = useState({
     name: "", shortCode: "", address: "", phone: "", email: "",
     website: "", logoUrl: "", taxId: "", taxRate: "", bankName: "", bankAccount: "",
@@ -37,8 +41,8 @@ export default function CompaniesPage() {
     const controller = new AbortController();
     fetch(`/api/companies?search=${search}`, { signal: controller.signal })
       .then((r) => r.json())
-      .then(setCompanies)
-      .catch(() => {});
+      .then((data) => { setCompanies(data); setLoading(false); })
+      .catch((e) => { if (e?.name !== "AbortError") setLoading(false); });
     return () => controller.abort();
   }, [search, refreshKey]);
 
@@ -100,23 +104,55 @@ export default function CompaniesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError("");
+
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      setFormError("Please enter a valid email address");
+      return;
+    }
+    if (form.taxRate && (Number(form.taxRate) < 0 || Number(form.taxRate) > 100)) {
+      setFormError("Tax rate must be between 0 and 100");
+      return;
+    }
+
     const method = editing ? "PUT" : "POST";
     const url = editing ? `/api/companies/${editing.id}` : "/api/companies";
 
-    await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    resetForm();
-    setRefreshKey((k) => k + 1);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setFormError(data?.error || "Failed to save company");
+        return;
+      }
+
+      showToast(editing ? "Company updated" : "Company created", "success");
+      resetForm();
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setFormError("An unexpected error occurred");
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this company?")) return;
-    await fetch(`/api/companies/${id}`, { method: "DELETE" });
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/companies/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        showToast(data?.error || "Failed to delete company", "error");
+        return;
+      }
+      showToast("Company deleted", "success");
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast("An unexpected error occurred", "error");
+    }
   }
 
   return (
@@ -150,6 +186,11 @@ export default function CompaniesPage() {
           <h2 className="text-lg font-semibold mb-4">
             {editing ? "Edit Company" : "Add Company"}
           </h2>
+          {formError && (
+            <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              {formError}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
@@ -226,7 +267,7 @@ export default function CompaniesPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
-              <input type="number" step="0.01" value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: e.target.value })}
+              <input type="number" step="0.01" min="0" max="100" value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
@@ -275,7 +316,14 @@ export default function CompaniesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {companies.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-16 text-center text-gray-500">
+                    <Loader2 className="w-8 h-8 mx-auto mb-3 text-gray-300 animate-spin" />
+                    <p className="text-sm text-gray-400">Loading companies...</p>
+                  </td>
+                </tr>
+              ) : companies.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center text-gray-500">
                     <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />

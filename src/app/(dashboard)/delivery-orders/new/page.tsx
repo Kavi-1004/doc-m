@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Plus, Trash2, Printer, Download } from "lucide-react";
 import Link from "next/link";
 import DeliveryOrderPreview from "@/components/delivery-orders/DeliveryOrderPreview";
+import { useToast } from "@/components/ui/Toast";
 
 interface DOItem {
   description: string;
@@ -15,14 +16,16 @@ interface DOItem {
 
 interface Company { id: string; name: string; shortCode: string; }
 interface Customer { id: string; name: string; }
-interface Quotation { id: string; quotationNumber: string; customerId: string; companyId: string; items: { description: string; quantity: number; unit: string; }[]; }
+interface Quotation { id: string; quotationNumber: string; title?: string; customerId: string; companyId: string; items: { description: string; quantity: number; unit: string; }[]; }
 
 export default function NewDeliveryOrderPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [doId, setDoId] = useState<string | null>(null);
   const [doNumber, setDoNumber] = useState("DO-XXXX");
@@ -123,10 +126,16 @@ export default function NewDeliveryOrderPage() {
   }
 
   async function handleSave() {
-    if (!companyId || !customerId) {
-      alert("Please select company and customer");
+    const newErrors: Record<string, string> = {};
+    if (!companyId) newErrors.companyId = "Company is required";
+    if (!customerId) newErrors.customerId = "Customer is required";
+    const hasEmptyItems = items.some((item) => !item.description.trim());
+    if (hasEmptyItems) newErrors.items = "All items must have a description";
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
+    setErrors({});
     setSaving(true);
     try {
       const method = doId ? "PUT" : "POST";
@@ -140,7 +149,15 @@ export default function NewDeliveryOrderPage() {
           deliveryDate: deliveryDate || undefined, items, footer, status
         }),
       });
-      if (res.ok) router.push("/delivery-orders");
+      if (res.ok) {
+        showToast(doId ? "Delivery order updated" : "Delivery order created", "success");
+        router.push("/delivery-orders");
+      } else {
+        const data = await res.json().catch(() => null);
+        showToast(data?.error || "Failed to save delivery order", "error");
+      }
+    } catch {
+      showToast("An unexpected error occurred", "error");
     } finally {
       setSaving(false);
     }
@@ -206,19 +223,21 @@ export default function NewDeliveryOrderPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Company *</label>
-              <select required value={companyId} onChange={(e) => setCompanyId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select required value={companyId} onChange={(e) => { setCompanyId(e.target.value); setErrors((prev) => { const next = { ...prev }; delete next.companyId; return next; }); }}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.companyId ? "border-red-400" : "border-gray-300"}`}>
                 <option value="">Select company</option>
                 {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {errors.companyId && <p className="text-xs text-red-600 mt-1">{errors.companyId}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-              <select required value={customerId} onChange={(e) => setCustomerId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select required value={customerId} onChange={(e) => { setCustomerId(e.target.value); setErrors((prev) => { const next = { ...prev }; delete next.customerId; return next; }); }}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.customerId ? "border-red-400" : "border-gray-300"}`}>
                 <option value="">Select customer</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {errors.customerId && <p className="text-xs text-red-600 mt-1">{errors.customerId}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date</label>
@@ -269,6 +288,7 @@ export default function NewDeliveryOrderPage() {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
 
+        {errors.items && <p className="text-xs text-red-600">{errors.items}</p>}
         </div>
         
         {/* Right: Live Preview */}

@@ -38,6 +38,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
+  }
+
+  const parsedTaxRate = taxRate ? parseFloat(taxRate) : 0;
+  if (parsedTaxRate < 0 || parsedTaxRate > 100) {
+    return NextResponse.json({ error: "Tax rate must be between 0 and 100" }, { status: 400 });
+  }
+
+  const existing = await prisma.company.findFirst({ where: { shortCode: shortCode.toUpperCase() } });
+  if (existing) {
+    return NextResponse.json({ error: "A company with this short code already exists" }, { status: 409 });
+  }
+
   const company = await prisma.company.create({
     data: {
       name,
@@ -48,7 +62,7 @@ export async function POST(request: NextRequest) {
       website,
       logoUrl,
       taxId,
-      taxRate: taxRate ? parseFloat(taxRate) : 0,
+      taxRate: parsedTaxRate,
       bankName,
       bankAccount,
       bankBranch,

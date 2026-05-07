@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Plus, Trash2, Printer, Download } from "lucide-react";
 import Link from "next/link";
 import InvoicePreview from "@/components/invoices/InvoicePreview";
+import { useToast } from "@/components/ui/Toast";
 
 interface InvItem { description: string; quantity: number; unit: string; unitPrice: number; total: number; sortOrder: number; }
 interface Company { id: string; name: string; shortCode: string; }
@@ -13,10 +14,12 @@ interface DO { id: string; doNumber: string; customerId: string; companyId: stri
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [deliveryOrders, setDeliveryOrders] = useState<DO[]>([]);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState("INV-XXXX");
@@ -140,7 +143,18 @@ export default function NewInvoicePage() {
   }
 
   async function handleSave() {
-    if (!companyId || !customerId) { alert("Please select company and customer"); return; }
+    const newErrors: Record<string, string> = {};
+    if (!companyId) newErrors.companyId = "Company is required";
+    if (!customerId) newErrors.customerId = "Customer is required";
+    const hasEmptyItems = items.some((item) => !item.description.trim());
+    if (hasEmptyItems) newErrors.items = "All items must have a description";
+    if (discount < 0) newErrors.discount = "Discount cannot be negative";
+    if (taxRate < 0 || taxRate > 100) newErrors.taxRate = "Tax rate must be between 0 and 100";
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    setErrors({});
     setSaving(true);
     try {
       const method = invoiceId ? "PUT" : "POST";
@@ -156,7 +170,15 @@ export default function NewInvoicePage() {
           items, discount, taxRate, footer, status
         }),
       });
-      if (res.ok) router.push("/invoices");
+      if (res.ok) {
+        showToast(invoiceId ? "Invoice updated" : "Invoice created", "success");
+        router.push("/invoices");
+      } else {
+        const data = await res.json().catch(() => null);
+        showToast(data?.error || "Failed to save invoice", "error");
+      }
+    } catch {
+      showToast("An unexpected error occurred", "error");
     } finally { setSaving(false); }
   }
 
@@ -208,19 +230,21 @@ export default function NewInvoicePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Company *</label>
-              <select required value={companyId} onChange={(e) => setCompanyId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select required value={companyId} onChange={(e) => { setCompanyId(e.target.value); setErrors((prev) => { const next = { ...prev }; delete next.companyId; return next; }); }}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.companyId ? "border-red-400" : "border-gray-300"}`}>
                 <option value="">Select company</option>
                 {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {errors.companyId && <p className="text-xs text-red-600 mt-1">{errors.companyId}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
-              <select required value={customerId} onChange={(e) => setCustomerId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select required value={customerId} onChange={(e) => { setCustomerId(e.target.value); setErrors((prev) => { const next = { ...prev }; delete next.customerId; return next; }); }}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.customerId ? "border-red-400" : "border-gray-300"}`}>
                 <option value="">Select customer</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {errors.customerId && <p className="text-xs text-red-600 mt-1">{errors.customerId}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
@@ -268,13 +292,15 @@ export default function NewInvoicePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Discount ($)</label>
-              <input type="number" step="0.01" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="number" step="0.01" min="0" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.discount ? "border-red-400" : "border-gray-300"}`} />
+              {errors.discount && <p className="text-xs text-red-600 mt-1">{errors.discount}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
-              <input type="number" step="0.01" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="number" step="0.01" min="0" max="100" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.taxRate ? "border-red-400" : "border-gray-300"}`} />
+              {errors.taxRate && <p className="text-xs text-red-600 mt-1">{errors.taxRate}</p>}
             </div>
           </div>
           <div className="mt-4 space-y-2 text-sm">
@@ -291,6 +317,7 @@ export default function NewInvoicePage() {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
 
+        {errors.items && <p className="text-xs text-red-600">{errors.items}</p>}
         </div>
         
         {/* Right: Live Preview */}

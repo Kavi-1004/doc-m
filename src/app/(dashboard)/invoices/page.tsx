@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Receipt, Search, Plus, Trash2, Eye, Download, Mail } from "lucide-react";
+import { Receipt, Search, Plus, Trash2, Eye, Download, Mail, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/components/ui/Toast";
 
 interface Invoice {
   id: string;
@@ -24,10 +25,13 @@ const statusColors: Record<string, string> = {
 };
 
 export default function InvoicesPage() {
+  const { showToast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [emailError, setEmailError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,15 +40,25 @@ export default function InvoicesPage() {
     if (statusFilter) params.set("status", statusFilter);
     fetch(`/api/invoices?${params}`, { signal: controller.signal })
       .then((r) => r.json())
-      .then(setInvoices)
-      .catch(() => {});
+      .then((data) => { setInvoices(data); setLoading(false); })
+      .catch((e) => { if (e?.name !== "AbortError") setLoading(false); });
     return () => controller.abort();
   }, [search, statusFilter, refreshKey]);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this invoice?")) return;
-    await fetch(`/api/invoices/${id}`, { method: "DELETE" });
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        showToast(data?.error || "Failed to delete invoice", "error");
+        return;
+      }
+      showToast("Invoice deleted", "success");
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast("An unexpected error occurred", "error");
+    }
   }
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -60,6 +74,11 @@ export default function InvoicesPage() {
 
   async function sendInvoiceEmail() {
     if (!emailTo || !emailInvoiceId) return;
+    setEmailError("");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTo)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
     setEmailSending(true);
     try {
       const res = await fetch(`/api/invoices/${emailInvoiceId}/email`, {
@@ -69,23 +88,35 @@ export default function InvoicesPage() {
       });
       const data = await res.json();
       if (data.success) {
-        alert("Invoice email sent successfully!");
+        showToast("Invoice email sent successfully!", "success");
         setShowEmailDialog(false);
       } else {
-        alert(`Failed: ${data.error || "Unknown error"}`);
+        setEmailError(data.error || "Failed to send email");
       }
+    } catch {
+      setEmailError("An unexpected error occurred");
     } finally {
       setEmailSending(false);
     }
   }
 
   async function handleStatusUpdate(id: string, status: string) {
-    await fetch(`/api/invoices/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, items: [] }),
-    });
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/invoices/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, items: [] }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        showToast(data?.error || "Failed to update status", "error");
+        return;
+      }
+      showToast("Invoice status updated", "success");
+      setRefreshKey((k) => k + 1);
+    } catch {
+      showToast("An unexpected error occurred", "error");
+    }
   }
 
   return (
@@ -134,7 +165,12 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {invoices.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={7} className="px-4 py-16 text-center text-gray-500">
+                  <Loader2 className="w-8 h-8 mx-auto mb-3 text-gray-300 animate-spin" />
+                  <p className="text-sm text-gray-400">Loading invoices...</p>
+                </td></tr>
+              ) : invoices.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-16 text-center text-gray-500">
                   <Receipt className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p className="font-medium text-gray-600">No invoices found</p>
@@ -192,9 +228,10 @@ export default function InvoicesPage() {
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email *</label>
-                <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)}
+                <input type="email" value={emailTo} onChange={(e) => { setEmailTo(e.target.value); setEmailError(""); }}
                   placeholder="recipient@example.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailError ? "border-red-400" : "border-gray-300"}`} />
+                {emailError && <p className="text-xs text-red-600 mt-1">{emailError}</p>}
               </div>
               <p className="text-xs text-gray-500">The invoice PDF will be attached automatically.</p>
             </div>
