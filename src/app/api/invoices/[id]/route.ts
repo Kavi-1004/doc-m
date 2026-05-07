@@ -39,8 +39,6 @@ export async function PUT(
   const { id } = await params;
   const body = await request.json();
 
-  await prisma.invoiceItem.deleteMany({ where: { invoiceId: id } });
-
   const parsedItems = (body.items || []).map((item: { description: string; quantity: number; unit: string; unitPrice: number; sortOrder: number }) => ({
     description: item.description,
     quantity: item.quantity || 1,
@@ -56,26 +54,30 @@ export async function PUT(
   const taxAmount = (subtotal - discountAmount) * (tax / 100);
   const grandTotal = subtotal - discountAmount + taxAmount;
 
-  const invoice = await prisma.invoice.update({
-    where: { id },
-    data: {
-      status: body.status,
-      dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
-      subtotal,
-      discount: discountAmount,
-      taxRate: tax,
-      taxAmount,
-      grandTotal,
-      footer: body.footer,
-      items: {
-        create: parsedItems,
+  const invoice = await prisma.$transaction(async (tx) => {
+    await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
+
+    return tx.invoice.update({
+      where: { id },
+      data: {
+        status: body.status,
+        dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+        subtotal,
+        discount: discountAmount,
+        taxRate: tax,
+        taxAmount,
+        grandTotal,
+        footer: body.footer,
+        items: {
+          create: parsedItems,
+        },
       },
-    },
-    include: {
-      company: true,
-      customer: true,
-      items: { orderBy: { sortOrder: "asc" } },
-    },
+      include: {
+        company: true,
+        customer: true,
+        items: { orderBy: { sortOrder: "asc" } },
+      },
+    });
   });
 
   await createLog("EDITED", "Invoice", id, session.id, `Updated invoice: ${invoice.invoiceNumber}`);

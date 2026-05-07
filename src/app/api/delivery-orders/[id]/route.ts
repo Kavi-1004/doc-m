@@ -38,8 +38,6 @@ export async function PUT(
   const { id } = await params;
   const body = await request.json();
 
-  await prisma.deliveryOrderItem.deleteMany({ where: { deliveryOrderId: id } });
-
   const parsedItems = (body.items || []).map((item: { description: string; quantity: number; unit: string; sortOrder: number }) => ({
     description: item.description,
     quantity: item.quantity || 1,
@@ -47,21 +45,25 @@ export async function PUT(
     sortOrder: item.sortOrder || 0,
   }));
 
-  const deliveryOrder = await prisma.deliveryOrder.update({
-    where: { id },
-    data: {
-      status: body.status,
-      deliveryDate: body.deliveryDate ? new Date(body.deliveryDate) : undefined,
-      footer: body.footer,
-      items: {
-        create: parsedItems,
+  const deliveryOrder = await prisma.$transaction(async (tx) => {
+    await tx.deliveryOrderItem.deleteMany({ where: { deliveryOrderId: id } });
+
+    return tx.deliveryOrder.update({
+      where: { id },
+      data: {
+        status: body.status,
+        deliveryDate: body.deliveryDate ? new Date(body.deliveryDate) : undefined,
+        footer: body.footer,
+        items: {
+          create: parsedItems,
+        },
       },
-    },
-    include: {
-      company: true,
-      customer: true,
-      items: { orderBy: { sortOrder: "asc" } },
-    },
+      include: {
+        company: true,
+        customer: true,
+        items: { orderBy: { sortOrder: "asc" } },
+      },
+    });
   });
 
   await createLog("EDITED", "DeliveryOrder", id, session.id, `Updated DO: ${deliveryOrder.doNumber}`);

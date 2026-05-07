@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       customerId,
       quotationId,
       purchaseOrderId,
+      status: status || "PENDING",
       deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
       footer,
       items: {

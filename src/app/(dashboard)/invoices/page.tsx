@@ -102,10 +102,16 @@ export default function InvoicesPage() {
 
   async function handleStatusUpdate(id: string, status: string) {
     try {
+      const invoiceRes = await fetch(`/api/invoices/${id}`);
+      if (!invoiceRes.ok) {
+        showToast("Failed to fetch invoice details", "error");
+        return;
+      }
+      const invoiceData = await invoiceRes.json();
       const res = await fetch(`/api/invoices/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, items: [] }),
+        body: JSON.stringify({ status, items: invoiceData.items, discount: invoiceData.discount, taxRate: invoiceData.taxRate }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
