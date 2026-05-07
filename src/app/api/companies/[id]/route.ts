@@ -38,7 +38,7 @@ export async function PUT(
       website: body.website,
       logoUrl: body.logoUrl,
       taxId: body.taxId,
-      taxRate: body.taxRate ? parseFloat(body.taxRate) : undefined,
+      taxRate: body.taxRate !== undefined ? parseFloat(body.taxRate) : undefined,
       bankName: body.bankName,
       bankAccount: body.bankAccount,
       bankBranch: body.bankBranch,
