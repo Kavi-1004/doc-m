@@ -1,0 +1,291 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── AUTH & USERS ────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  roleId       String
+  role         Role     @relation(fields: [roleId], references: [id])
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  logs         Log[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  permissions Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+}
+
+// ─── COMPANY & CUSTOMER ──────────────────────────────────
+
+model Company {
+  id             String          @id @default(uuid())
+  name           String
+  shortCode      String          @unique
+  address        String?
+  phone          String?
+  email          String?
+  website        String?
+  logoUrl        String?
+  taxId          String?
+  taxRate        Float?          @default(0)
+  bankName       String?
+  bankAccount    String?
+  bankBranch     String?
+  swiftCode      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  quotations     Quotation[]
+  deliveryOrders DeliveryOrder[]
+  invoices       Invoice[]
+}
+
+model Customer {
+  id             String          @id @default(uuid())
+  name           String
+  contactPerson  String?
+  email          String?
+  phone          String?
+  address        String?
+  taxId          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  quotations     Quotation[]
+  purchaseOrders PurchaseOrder[]
+  deliveryOrders DeliveryOrder[]
+  invoices       Invoice[]
+}
+
+// ─── QUOTATION ───────────────────────────────────────────
+
+model Quotation {
+  id                  String          @id @default(uuid())
+  quotationNumber     String          @unique
+  companyId           String
+  company             Company         @relation(fields: [companyId], references: [id])
+  customerId          String
+  customer            Customer        @relation(fields: [customerId], references: [id])
+  title               String?
+  date                DateTime        @default(now())
+  status              QuotationStatus @default(DRAFT)
+  discount            Float           @default(0)
+  taxRate             Float           @default(0)
+  taxAmount           Float           @default(0)
+  subtotal            Float           @default(0)
+  grandTotal          Float           @default(0)
+  currency            String          @default("LKR")
+  isComputerGenerated Boolean         @default(false)
+  validity            String          @default("30 DAYS")
+  salesPerson         String?
+  salesPhone          String?
+  salesEmail          String?
+  terms               String?
+  warranty            String?
+  footer              String?
+  revisionNumber      Int             @default(0)
+  parentId            String?
+  parent              Quotation?      @relation("QuotationRevisions", fields: [parentId], references: [id])
+  revisions           Quotation[]     @relation("QuotationRevisions")
+  items               QuotationItem[]
+  purchaseOrders      PurchaseOrder[]
+  deliveryOrders      DeliveryOrder[]
+  invoices            Invoice[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  REVISED
+  EXPIRED
+}
+
+model QuotationItem {
+  id          String    @id @default(uuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description String
+  details     String?
+  quantity    Float     @default(1)
+  unit        String    @default("pcs")
+  unitPrice   Float     @default(0)
+  total       Float     @default(0)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ─── PURCHASE ORDER ──────────────────────────────────────
+
+model PurchaseOrder {
+  id             String          @id @default(uuid())
+  poNumber       String?
+  quotationId    String
+  quotation      Quotation       @relation(fields: [quotationId], references: [id])
+  customerId     String
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  fileUrl        String?
+  fileName       String?
+  status         POStatus        @default(RECEIVED)
+  notes          String?
+  receivedDate   DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deliveryOrders DeliveryOrder[]
+  invoices       Invoice[]
+}
+
+enum POStatus {
+  RECEIVED
+  PROCESSING
+  COMPLETED
+}
+
+// ─── DELIVERY ORDER ──────────────────────────────────────
+
+model DeliveryOrder {
+  id              String              @id @default(uuid())
+  doNumber        String              @unique
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id])
+  customerId      String
+  customer        Customer            @relation(fields: [customerId], references: [id])
+  quotationId     String?
+  quotation       Quotation?          @relation(fields: [quotationId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?      @relation(fields: [purchaseOrderId], references: [id])
+  deliveryDate    DateTime?
+  status          DOStatus            @default(PENDING)
+  revisionNumber  Int                 @default(0)
+  footer          String?
+  items           DeliveryOrderItem[]
+  invoices        Invoice[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+enum DOStatus {
+  PENDING
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+model DeliveryOrderItem {
+  id              String        @id @default(uuid())
+  deliveryOrderId String
+  deliveryOrder   DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  description     String
+  quantity        Float         @default(1)
+  unit            String        @default("pcs")
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+// ─── INVOICE ─────────────────────────────────────────────
+
+model Invoice {
+  id              String         @id @default(uuid())
+  invoiceNumber   String         @unique
+  companyId       String
+  company         Company        @relation(fields: [companyId], references: [id])
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  quotationId     String?
+  quotation       Quotation?     @relation(fields: [quotationId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  deliveryOrderId String?
+  deliveryOrder   DeliveryOrder? @relation(fields: [deliveryOrderId], references: [id])
+  date            DateTime       @default(now())
+  dueDate         DateTime?
+  status          InvoiceStatus  @default(UNPAID)
+  subtotal        Float          @default(0)
+  discount        Float          @default(0)
+  taxRate         Float          @default(0)
+  taxAmount       Float          @default(0)
+  grandTotal      Float          @default(0)
+  revisionNumber  Int            @default(0)
+  footer          String?
+  items           InvoiceItem[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float    @default(1)
+  unit        String   @default("pcs")
+  unitPrice   Float    @default(0)
+  total       Float    @default(0)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── LOGGING ─────────────────────────────────────────────
+
+model Log {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+// ─── FEATURE SETTINGS ────────────────────────────────────
+
+model FeatureSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── PAYMENT METHODS ─────────────────────────────────────
+
+model PaymentMethod {
+  id        String   @id @default(uuid())
+  name      String
+  bankName  String?
+  accountNo String?
+  branch    String?
+  swiftCode String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
