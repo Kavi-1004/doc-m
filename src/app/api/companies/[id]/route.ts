@@ -63,7 +63,17 @@ export async function DELETE(
   const { id } = await params;
   const company = await prisma.company.findUnique({ where: { id } });
 
-  await prisma.company.delete({ where: { id } });
+  try {
+    await prisma.company.delete({ where: { id } });
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2003") {
+      return NextResponse.json(
+        { error: "Cannot delete company with existing documents. Remove all related quotations, delivery orders, and invoices first." },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   await createLog("DELETED", "Company", id, session.id, `Deleted company: ${company?.name}`);
 

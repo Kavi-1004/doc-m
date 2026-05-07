@@ -79,7 +79,19 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  await prisma.deliveryOrder.delete({ where: { id } });
+
+  try {
+    await prisma.deliveryOrder.delete({ where: { id } });
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2003") {
+      return NextResponse.json(
+        { error: "Cannot delete delivery order with existing invoices. Remove them first." },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
+
   await createLog("DELETED", "DeliveryOrder", id, session.id, "Deleted delivery order");
 
   return NextResponse.json({ success: true });
