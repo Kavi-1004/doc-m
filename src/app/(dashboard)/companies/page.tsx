@@ -66,7 +66,7 @@ export default function CompaniesPage() {
       website: c.website || "",
       logoUrl: c.logoUrl || "",
       taxId: c.taxId || "",
-      taxRate: String(c.taxRate || ""),
+      taxRate: c.taxRate != null ? String(c.taxRate) : "",
       bankName: c.bankName || "",
       bankAccount: c.bankAccount || "",
       bankBranch: c.bankBranch || "",
