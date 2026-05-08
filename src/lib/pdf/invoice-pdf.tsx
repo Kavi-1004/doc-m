@@ -157,7 +157,9 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
               <View style={{ marginLeft: 4 }}>
                 {data.customer.contactPerson && <Text style={styles.infoValue}>{data.customer.contactPerson}</Text>}
                 {data.customer.name && <Text style={styles.infoValue}>{data.customer.name}</Text>}
-                {data.customer.address && <Text style={styles.infoValue}>{data.customer.address}</Text>}
+                {data.customer.address && data.customer.address.split("\n").map((line, i) => (
+                  <Text key={i} style={styles.infoValue}>{line}</Text>
+                ))}
               </View>
             </View>
             <View>
