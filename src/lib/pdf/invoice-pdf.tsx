@@ -12,7 +12,7 @@ const styles = StyleSheet.create({
   regNoContainer: { width: 100, alignItems: "flex-end" },
   regNo: { fontSize: 8, fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
   divider: { borderBottomWidth: 2, borderBottomColor: "#000", marginBottom: 20 },
-  infoSection: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
+  infoSection: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20, alignItems: "flex-start" },
   leftInfo: { width: "55%" },
   infoRow: { flexDirection: "row", marginBottom: 4 },
   infoLabel: { width: 70, fontFamily: "Helvetica-Bold", fontSize: 9 },
@@ -160,7 +160,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
                 {data.customer.address && <Text style={styles.infoValue}>{data.customer.address}</Text>}
               </View>
             </View>
-            <View style={{ flexDirection: "row", marginTop: 15 }}>
+            <View style={{ flexDirection: "row", marginTop: 20 }}>
               <Text style={styles.infoLabel}>ATTN:</Text>
               <View style={{ flex: 1 }}>
                 {data.customer.contactPerson && <Text style={styles.infoValue}>{data.customer.contactPerson}</Text>}
