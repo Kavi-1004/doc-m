@@ -101,7 +101,7 @@ export default function NewInvoicePage() {
     }
   }, [companyId, invoiceId, deliveryOrderId, deliveryOrders]);
 
-  function selectDO(doId: string) {
+  async function selectDO(doId: string) {
     setDeliveryOrderId(doId);
     const d = deliveryOrders.find((d) => d.id === doId);
     if (d) {
@@ -110,15 +110,33 @@ export default function NewInvoicePage() {
       if (d.doNumber) {
         setInvoiceNumber(d.doNumber.replace("-DO-", "-I-").replace("-D-", "-I-"));
       }
+
+      let quotationItems: { description: string; unitPrice: number; total: number }[] = [];
+      if (d.quotationId) {
+        try {
+          const qRes = await fetch(`/api/quotations/${d.quotationId}`);
+          if (qRes.ok) {
+            const qData = await qRes.json();
+            quotationItems = qData.items || [];
+          }
+        } catch { /* ignore */ }
+      }
+
       if (d.items) {
-        setItems(d.items.map((item: any, i: number) => ({
-          description: item.description,
-          quantity: item.quantity,
-          unit: item.unit,
-          unitPrice: 0,
-          total: 0,
-          sortOrder: i,
-        })));
+        setItems(d.items.map((item: { description: string; quantity: number; unit: string }, i: number) => {
+          const matchedQItem = quotationItems.find(
+            (qi) => qi.description.trim().toLowerCase() === item.description.trim().toLowerCase()
+          );
+          const unitPrice = matchedQItem?.unitPrice ?? 0;
+          return {
+            description: item.description,
+            quantity: item.quantity,
+            unit: item.unit,
+            unitPrice,
+            total: item.quantity * unitPrice,
+            sortOrder: i,
+          };
+        }));
       }
     }
   }

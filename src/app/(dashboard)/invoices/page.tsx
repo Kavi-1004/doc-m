@@ -14,6 +14,7 @@ interface Invoice {
   dueDate: string | null;
   company: { name: string; shortCode: string };
   customer: { name: string };
+  _count: { items: number };
 }
 
 const statusColors: Record<string, string> = {
@@ -166,18 +167,19 @@ export default function InvoicesPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Due Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Items</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-16 text-center text-gray-500">
+                <tr><td colSpan={8} className="px-4 py-16 text-center text-gray-500">
                   <Loader2 className="w-8 h-8 mx-auto mb-3 text-gray-300 animate-spin" />
                   <p className="text-sm text-gray-400">Loading invoices...</p>
                 </td></tr>
               ) : invoices.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-16 text-center text-gray-500">
+                <tr><td colSpan={8} className="px-4 py-16 text-center text-gray-500">
                   <Receipt className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p className="font-medium text-gray-600">No invoices found</p>
                   <p className="text-sm text-gray-400 mt-1">Create an invoice to track payments</p>
@@ -200,6 +202,9 @@ export default function InvoicesPage() {
                       <option value="OVERDUE">Overdue</option>
                       <option value="CANCELLED">Cancelled</option>
                     </select>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
+                    {inv._count.items}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">
                     ${inv.grandTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}

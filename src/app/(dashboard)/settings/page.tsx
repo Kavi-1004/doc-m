@@ -36,7 +36,6 @@ export default function SettingsPage() {
 
   function updateSetting(key: string, value: string) {
     setSettings(settings.map((s) => s.key === key ? { ...s, value } : s));
-    setSaved(false);
   }
 
   async function handleSave() {
