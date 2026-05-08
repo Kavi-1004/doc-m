@@ -15,8 +15,8 @@ const styles = StyleSheet.create({
   infoSection: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
   leftInfo: { width: "55%" },
   infoRow: { flexDirection: "row", marginBottom: 4 },
-  infoLabel: { width: 60, fontFamily: "Helvetica-Bold", fontSize: 9 },
-  infoValue: { flex: 1, fontSize: 9 },
+  infoLabel: { width: 70, fontFamily: "Helvetica-Bold", fontSize: 9 },
+  infoValue: { flex: 1, fontSize: 10, color: "#000", marginBottom: 1 },
   rightInfoBox: { width: "40%", borderWidth: 2, borderColor: "#000" },
   rightInfoHeader: { backgroundColor: "#fff", borderBottomWidth: 2, borderBottomColor: "#000", padding: 4, alignItems: "center" },
   rightInfoHeaderText: { fontSize: 10, fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
@@ -152,7 +152,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         {/* To & Info Section */}
         <View style={styles.infoSection}>
           <View style={styles.leftInfo}>
-            <View style={styles.infoRow}>
+            <View style={{ flexDirection: "row" }}>
               <Text style={styles.infoLabel}>BILL TO:</Text>
               <View style={{ flex: 1 }}>
                 {data.customer.contactPerson && <Text style={styles.infoValue}>{data.customer.contactPerson}</Text>}
@@ -160,7 +160,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
                 {data.customer.address && <Text style={styles.infoValue}>{data.customer.address}</Text>}
               </View>
             </View>
-            <View style={[styles.infoRow, { marginTop: 10 }]}>
+            <View style={{ flexDirection: "row", marginTop: 15 }}>
               <Text style={styles.infoLabel}>ATTN:</Text>
               <View style={{ flex: 1 }}>
                 {data.customer.contactPerson && <Text style={styles.infoValue}>{data.customer.contactPerson}</Text>}

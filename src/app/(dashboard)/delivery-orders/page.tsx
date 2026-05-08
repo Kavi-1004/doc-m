@@ -90,6 +90,7 @@ export default function DeliveryOrdersPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Quotation</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Items</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Delivery Date</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
@@ -97,14 +98,14 @@ export default function DeliveryOrdersPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-16 text-center text-gray-500">
                     <Loader2 className="w-8 h-8 mx-auto mb-3 text-gray-300 animate-spin" />
                     <p className="text-sm text-gray-400">Loading delivery orders...</p>
                   </td>
                 </tr>
               ) : deliveryOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-16 text-center text-gray-500">
                     <Truck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p className="font-medium text-gray-600">No delivery orders found</p>
                     <p className="text-sm text-gray-400 mt-1">Create a delivery order from an approved quotation</p>
@@ -125,6 +126,9 @@ export default function DeliveryOrdersPage() {
                       <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[d.status] || ""}`}>
                         {d.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
+                      {d._count.items}
                     </td>
                     <td className="px-4 py-3 text-gray-600 hidden lg:table-cell">
                       {d.deliveryDate ? new Date(d.deliveryDate).toLocaleDateString() : "-"}
