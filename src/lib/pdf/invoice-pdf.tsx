@@ -152,17 +152,17 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         {/* To & Info Section */}
         <View style={styles.infoSection}>
           <View style={styles.leftInfo}>
-            <View style={{ flexDirection: "row" }}>
-              <Text style={styles.infoLabel}>BILL TO:</Text>
-              <View style={{ flex: 1 }}>
+            <View style={{ marginBottom: 10 }}>
+              <Text style={[styles.infoLabel, { marginBottom: 2 }]}>BILL TO:</Text>
+              <View style={{ marginLeft: 4 }}>
                 {data.customer.contactPerson && <Text style={styles.infoValue}>{data.customer.contactPerson}</Text>}
                 {data.customer.name && <Text style={styles.infoValue}>{data.customer.name}</Text>}
                 {data.customer.address && <Text style={styles.infoValue}>{data.customer.address}</Text>}
               </View>
             </View>
-            <View style={{ flexDirection: "row", marginTop: 8 }}>
-              <Text style={styles.infoLabel}>ATTN:</Text>
-              <View style={{ flex: 1 }}>
+            <View>
+              <Text style={[styles.infoLabel, { marginBottom: 2 }]}>ATTN:</Text>
+              <View style={{ marginLeft: 4 }}>
                 {data.customer.contactPerson && <Text style={styles.infoValue}>{data.customer.contactPerson}</Text>}
                 {data.customer.email && <Text style={styles.infoValue}>{data.customer.email}</Text>}
                 {data.customer.phone && <Text style={styles.infoValue}>{data.customer.phone}</Text>}
